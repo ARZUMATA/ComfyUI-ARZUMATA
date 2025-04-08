@@ -1,5 +1,9 @@
 import torch, hashlib
 from typing import Dict, Union, Tuple, List, Any
+from PIL import Image, ImageEnhance, ImageOps, ImageFilter
+import numpy
+import os
+import comfy.sd
 
 class CachingCLIPTextEncode:
     """A caching CLIP text encoder that stores previous encodings to avoid redundant processing."""
@@ -185,12 +189,162 @@ class CachingCLIPTextEncodeFlux:
 
         return ([[cond, output]], )
 
+# https://github.com/Jordach/comfy-plasma
+# A bit changed node to fit my needs
+# I needed support for:
+# https://github.com/IuvenisSapiens/ComfyUI_Qwen2-VL-Instruct
+
+
+class ImageCacher:
+    def __init__(self) -> None:
+        self.image = None
+        self.image_hash = None
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": 
+                    {
+                        "image": ("IMAGE",),
+                    },
+                }
+
+    RETURN_TYPES = ("IMAGE", )
+    FUNCTION = "cache"
+    OUTPUT_NODE = True
+    CATEGORY = "cache"
+
+    def cache(self, image):
+        
+        if self.image_hash == hash(image):
+            return self.image
+        
+        else:
+            self.image = image
+            self.image_hash = hash(image)
+            return image
+
+    @classmethod
+    def IS_CHANGED(self):
+        return self.image_hash
+        
+
+
+class LoadImagePath:
+	@classmethod
+	def INPUT_TYPES(s):
+		return {
+				"required": 
+					{
+						"image": ("STRING", {"default": ""})
+					}
+				}
+
+	CATEGORY = "image"
+
+	RETURN_TYPES = ("IMAGE", "MASK", "STRING", "PATH")
+	FUNCTION = "load_image"
+	def load_image(self, image):
+		# Removes any quotes from Explorer
+		image_path = str(image)
+		image_path = image_path.replace('"', "")
+		i = None
+		i = Image.open(image_path)
+		i = ImageOps.exif_transpose(i)
+		image = i.convert("RGB")
+		image = numpy.array(image).astype(numpy.float32) / 255.0
+		image = torch.from_numpy(image)[None,]
+		if 'A' in i.getbands():
+			mask = numpy.array(i.getchannel('A')).astype(numpy.float32) / 255.0
+			mask = 1. - torch.from_numpy(mask)
+		else:
+			mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+		return (image, mask, image_path, image_path)
+
+	@classmethod
+	def IS_CHANGED(s, image):
+		image_path = str(image)
+		image_path = image_path.replace('"', "")
+		m = hashlib.sha256()
+		if not image_path.startswith("http"):
+			with open(image_path, 'rb') as f:
+				m.update(f.read())
+			return m.digest().hex()
+		else:
+			m.update(image.encode("utf-8"))
+			return m.digest().hex()
+
+	@classmethod
+	def VALIDATE_INPUTS(s, image):
+		image_path = str(image)
+		image_path = image_path.replace('"', "")
+		if image_path.startswith("http"):
+			return True
+		if not os.path.isfile(image_path):
+			return "No file found: {}".format(image_path)
+
+		return True
+
+# https://github.com/alexopus/ComfyUI-Image-Saver
+# Sampler and Scheduler extended
+# SCHEDULERS + LTXV[default]
+
+
+class SamplerSelector:
+    RETURN_TYPES = (comfy.samplers.KSampler.SAMPLERS, "STRING")
+    RETURN_NAMES = ("sampler",                        "sampler_name")
+    OUTPUT_TOOLTIPS = ("sampler (SAMPLERS)", "sampler name (STRING)")
+    FUNCTION = "get_names"
+
+    CATEGORY = 'utils'
+    DESCRIPTION = 'Provides one of the available ComfyUI samplers'
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "sampler (Comfy's standard)"}),
+            }
+        }
+
+    def get_names(self, sampler_name):
+        return (sampler_name, sampler_name)
+
+class SchedulerSelector:
+    RETURN_TYPES = (comfy.samplers.KSampler.SCHEDULERS + ['AYS SDXL', 'AYS SD1', 'AYS SVD', 'GITS[coeff=1.2]', 'LTXV[default]'], "STRING")
+    RETURN_NAMES = ("scheduler",                                                                                "scheduler_name")
+    OUTPUT_TOOLTIPS = ("scheduler (SCHEDULERS + ['AYS SDXL', 'AYS SD1', 'AYS SVD', 'GITS[coeff=1.2]'])", "scheduler name (STRING)")
+    FUNCTION = "get_names"
+
+    CATEGORY = 'utils'
+    DESCRIPTION = 'Provides one of the standard ComfyUI plus some extra schedulers'
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS + ['AYS SDXL', 'AYS SD1', 'AYS SVD', 'GITS[coeff=1.2]', 'LTXV[default]'], {"tooltip": "scheduler (Comfy's standard + extras)"}),
+            }
+        }
+
+    def get_names(self, scheduler):
+        return (scheduler, scheduler)
+
+
 NODE_CLASS_MAPPINGS = {
     "CachingCLIPTextEncodeFlux|ARZUMATA": CachingCLIPTextEncodeFlux,
     "CachingCLIPTextEncode|ARZUMATA": CachingCLIPTextEncode,
+    "ImageLoaderWithPath|ARZUMATA": LoadImagePath,
+    "JDC_ImageLoader": LoadImagePath,
+    "ImageCacher": ImageCacher,
+    "Sampler Selector|ARZUMATA": SamplerSelector,
+    "Scheduler Selector|ARZUMATA": SchedulerSelector,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "CachingCLIPTextEncodeFlux|ARZUMATA": "Caching CLIP Text Encode for FLUX",
-    "CachingCLIPTextEncode|ARZUMATA": "Caching CLIP Text Encode",
+    "CachingCLIPTextEncodeFlux": "Caching CLIP Text Encode for FLUX",
+    "CachingCLIPTextEncode": "Caching CLIP Text Encode",
+    "ImageLoaderWithPath|ARZUMATA": "Load Image From Path",
+    "Sampler Selector|ARZUMATA": "Sampler Selector",
+    "Scheduler Selector|ARZUMATA": "SchedulerSelector",
 }
