@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-arzumata"
+description = "NODES:Caching CLIP Text Encode for FLUX.\nRandom nodes for ComfyUI for various purposes."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/ARZUMATA/ComfyUI-ARZUMATA"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-ARZUMATA"
+Icon = ""
