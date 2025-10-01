@@ -1,7 +1,20 @@
 # ComfyUI-ARZUMATA
+
 Random nodes for ComfyUI for various purposes.
 
-# Nodes list
+## Nodes List
+
+### 🔧 Universal Device Override (New!)
+
+Type-safe node that forces **any model or module** to run on a specified device (`cpu`, `cuda:0`, etc.).
+
+Designed to work seamlessly with:
+- `MODEL`, `CLIP`, `VAE`
+- `WANVAE`, `CLIP_VISION`
+- `CONTROL_NET`, `T2I_ADAPTER`, `IP_ADAPTER`
+- And other custom types
+
+---
 
 ### Caching CLIP Text Encode for FLUX
 
@@ -14,19 +27,25 @@ What node caches:
 - clip_l string
 - t5xxx string
 
-Guidance value is  not cached as it can be updated on the fly.
+> **Guidance value is NOT cached** — can be changed on the fly without invalidating cache
 
 There is also a cache limit option to limit cache size, it will delete the oldest cache when the cache size is exceeded.
 
 ### Caching CLIP Text Encode
 
-Same functionality as Caching CLIP Text Encode for FLUX, but only one text field and no guidance value.
+Same as above, but simplified:
+- Single text input
+- No guidance value
+
+---
 
 ## Installation
 
 Clone this repository to `ComfyUI/custom_nodes` directory.
 
 ## Credit
-discus0434/[comfyui-caching-embeddings](https://github.com/discus0434/comfyui-caching-embeddings) - inspired by.
 
-**And, for all ComfyUI custom node developers**
+- [discus0434/comfyui-caching-embeddings](https://github.com/discus0434/comfyui-caching-embeddings) — inspiration for caching logic
+- City96 [Apache2] [ComfyBootlegOffload](https://gist.github.com/city96/30743dfdfe129b331b5676a79c3a8a39)
+
+**And, to all ComfyUI custom node developers**
