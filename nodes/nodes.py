@@ -3,6 +3,8 @@ from typing import Dict, Union, Tuple, List, Any
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 import numpy
 import os
+import io
+import zipfile
 import comfy.sd
 
 class CachingCLIPTextEncode:
@@ -189,6 +191,7 @@ class CachingCLIPTextEncodeFlux:
 
         return ([[cond, output]], )
 
+# JDC_ImageLoader - LoadImagePath
 # https://github.com/Jordach/comfy-plasma
 # A bit changed node to fit my needs
 # I needed support for:
@@ -229,6 +232,35 @@ class ImageCacher:
         return self.image_hash
         
 
+def preprocess_image_path(image_path: str):
+    """
+    Preprocesses an image path to handle special file types.
+    
+    For .kra (Krita) files, extracts the mergedimage.png from the zip archive.
+    For other supported formats, returns None to indicate standard loading should be used.
+    
+    Args:
+        image_path: Path to the image file
+        
+    Returns:
+        PIL.Image.Image for .kra files, None otherwise
+    """
+    # Check if it's a .kra file (Krita archive format)
+    if image_path.lower().endswith('.kra'):
+        try:
+            with zipfile.ZipFile(image_path, 'r') as archive:
+                if 'mergedimage.png' in archive.namelist():
+                    image_bytes = archive.read('mergedimage.png')
+                    image = Image.open(io.BytesIO(image_bytes))
+                    return image
+                else:
+                    raise ValueError(f"No mergedimage.png found in .kra file: {image_path}")
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to read .kra file '{image_path}': {e}")
+    
+    # For all other formats, return None to indicate standard loading
+    return None
+
 
 class LoadImagePath:
 	@classmethod
@@ -248,18 +280,29 @@ class LoadImagePath:
 		# Removes any quotes from Explorer
 		image_path = str(image)
 		image_path = image_path.replace('"', "")
-		i = None
-		i = Image.open(image_path)
+		
+		# Preprocess: check if it's a special file type (e.g., .kra)
+		preprocessed_image = preprocess_image_path(image_path)
+		
+		# Load image: use preloaded image if available, otherwise load from path
+		if preprocessed_image is not None:
+			i = preprocessed_image  # image file already extracted
+		else:
+			i = Image.open(image_path)  # standard image loading
+		
+		# Unified processing for all images
 		i = ImageOps.exif_transpose(i)
-		image = i.convert("RGB")
-		image = numpy.array(image).astype(numpy.float32) / 255.0
-		image = torch.from_numpy(image)[None,]
+		image_converted = i.convert("RGB")
+		image_array = numpy.array(image_converted).astype(numpy.float32) / 255.0
+		image_tensor = torch.from_numpy(image_array)[None,]
+		
 		if 'A' in i.getbands():
 			mask = numpy.array(i.getchannel('A')).astype(numpy.float32) / 255.0
 			mask = 1. - torch.from_numpy(mask)
 		else:
 			mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-		return (image, mask, image_path, image_path)
+
+		return (image_tensor, mask, image_path, image_path)
 
 	@classmethod
 	def IS_CHANGED(s, image):
@@ -288,7 +331,6 @@ class LoadImagePath:
 # https://github.com/alexopus/ComfyUI-Image-Saver
 # Sampler and Scheduler extended
 # SCHEDULERS + LTXV[default]
-
 
 class SamplerSelector:
     RETURN_TYPES = (comfy.samplers.KSampler.SAMPLERS, "STRING")
