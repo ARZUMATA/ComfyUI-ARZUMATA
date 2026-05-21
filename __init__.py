@@ -1,16 +1,38 @@
-# Import node modules
-from .nodes.nodes import NODE_CLASS_MAPPINGS as nodes_class_mappings, NODE_DISPLAY_NAME_MAPPINGS as nodes_display_name_mappings
-from .nodes.universal_device_override import NODE_CLASS_MAPPINGS as universal_device_override_class_mappings, NODE_DISPLAY_NAME_MAPPINGS as universal_device_override_display_name_mappings
+import os
+import importlib
+from pathlib import Path
 
-# ——— Aggregate all mappings ———
+# Initialize mappings
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
-# Update with each module's mappings
-NODE_CLASS_MAPPINGS.update(nodes_class_mappings)
-NODE_DISPLAY_NAME_MAPPINGS.update(nodes_display_name_mappings)
-NODE_CLASS_MAPPINGS.update(universal_device_override_class_mappings)
-NODE_DISPLAY_NAME_MAPPINGS.update(universal_device_override_display_name_mappings)
+# Current directory (where __init__.py is)
+current_dir = Path(__file__).parent
 
-# Optional: expose via __all__
+# Nodes directory
+nodes_dir = current_dir / "nodes"
+
+# Dynamically import all Python files in nodes folder
+for py_file in nodes_dir.glob("*.py"):
+    if py_file.name == "__init__.py":
+        continue  # Skip __init__.py
+
+    # Module name without .py
+    module_name = f".nodes.{py_file.stem}"
+
+    # Import module
+    try:
+        module = importlib.import_module(module_name, package=__package__ or __name__.split('.')[0])
+
+        # Merge NODE_CLASS_MAPPINGS if present
+        if hasattr(module, "NODE_CLASS_MAPPINGS"):
+            NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+
+        # Merge NODE_DISPLAY_NAME_MAPPINGS if present
+        if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS"):
+            NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
+
+    except ImportError as e:
+        print(f"Failed to import {module_name}: {e}")
+
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
