@@ -31,6 +31,8 @@ What node caches:
 
 There is also a cache limit option to limit cache size, it will delete the oldest cache when the cache size is exceeded.
 
+---
+
 ### Caching CLIP Text Encode
 
 Same as above, but simplified:
@@ -38,7 +40,16 @@ Same as above, but simplified:
 - No guidance value
 
 ---
+ 
+### Load Image From Path
 
+Simple image loader using filepaths.
+Returns IMAGE, MASK, image path.
+  
+**Features:**
+- **Krita .kra file support** — automatically extracts `mergedimage.png` from the Krita archive
+- Alpha channel detection for mask generation
+ 
 ## Installation
 
 Clone this repository to `ComfyUI/custom_nodes` directory.
@@ -47,5 +58,6 @@ Clone this repository to `ComfyUI/custom_nodes` directory.
 
 - [discus0434/comfyui-caching-embeddings](https://github.com/discus0434/comfyui-caching-embeddings) — inspiration for caching logic
 - City96 [Apache2] [ComfyBootlegOffload](https://gist.github.com/city96/30743dfdfe129b331b5676a79c3a8a39)
+- [JDC_ImageLoader - LoadImagePath](https://github.com/Jordach/comfy-plasma) — image loader with path support
 
 **And, to all ComfyUI custom node developers**
